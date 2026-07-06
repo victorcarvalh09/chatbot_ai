@@ -2,10 +2,10 @@ import re
 import sqlite3
 import tempfile
 import pandas as pd
-import anthropic
 import streamlit as st
+from openai import OpenAI
 
-MODEL_ID = "claude-sonnet-4-5"
+MODEL_ID = "gpt-4o-mini"
 
 FIXED_DATABASES = {
     "database_example": {
@@ -31,7 +31,7 @@ SQL_TAG = re.compile(r"<sql>(.*?)</sql>", re.DOTALL | re.IGNORECASE)
 
 def get_client():
     # Lê a chave dos secrets do Streamlit Cloud
-    return anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
+    return OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 
 def _schema_block(tables):
@@ -88,9 +88,13 @@ def load_csv_to_sqlite(file_bytes, filename):
 def run_query(question, tables, db_path, desc=""):
     client = get_client()
     system = build_system_prompt(tables, desc)
-    msg = client.messages.create(model=MODEL_ID, max_tokens=1024, system=system,
-                                  messages=[{"role": "user", "content": question}])
-    sql = extract_sql(msg.content[0].text)
+    msg = client.chat.completions.create(
+        model=MODEL_ID,
+        max_tokens=1024,
+        system=system,
+        messages=[{"role": "user", "content": question}]
+    )
+    sql = extract_sql(msg.choices[0].message.content)
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
